@@ -2,6 +2,7 @@
 # coding: utf-8
 
 from scipy.linalg import toeplitz
+import statsmodels.api as sm
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -83,7 +84,7 @@ def bootrsp(data, B=1):
 
     if data.ndim == 1:
         N = data.shape[0]
-        resamples = np.random.choice(data, size=(N, B), replace=True)
+        resamples = np.random.choice(data, size=(N), replace=True)
     else:
         N, M = data.shape
         resamples = np.empty((N, M, B))
@@ -131,6 +132,8 @@ def bootstrap_ar(signal, B):
     """
     
     ar_coeffs_orig,_ = yule_walker(signal)
+    ar_coeffs_orig_2, _ = sm.regression.yule_walker(signal, order=10,
+                                       method="mle")
     residuals_orig = calculate_residuals(signal, ar_coeffs_orig)
     ar_coeffs_star_all = np.zeros((B, len(ar_coeffs_orig)))
     for i in range(B):
