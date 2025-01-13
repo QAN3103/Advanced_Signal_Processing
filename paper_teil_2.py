@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[5]:
-
 
 import pandas as pd
 import numpy as np
@@ -42,12 +37,6 @@ def create_signal (a, sigma, p):
                 sum_a += a[k-1]*x[i-k]
         x[i]= z[i]-sum_a
     return x
-        
-        
-    
-
-
-# In[6]:
 
 
 def calculate_spectrum (sigma, a, num_points):
@@ -69,19 +58,6 @@ def calculate_spectrum (sigma, a, num_points):
     return c_xx
 
 
-# In[8]:
-
-
-get_ipython().system("jupyter nbconvert --to script '/Seminar Advanced Signal Processing/grundlage.ipynb'")
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
 
 
 
