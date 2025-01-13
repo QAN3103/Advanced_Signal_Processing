@@ -1,14 +1,6 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[ ]:
-
 
 import numpy as np
 import correlation as corr
-
-
-# In[ ]:
 
 
 def compute_parcor(x, lag):
@@ -60,10 +52,6 @@ def compute_parcor(x, lag):
         #update variance 
         sigma2 *= (1 - pacf[k] ** 2)
     return pacf
-
-
-# In[ ]:
-
 
 def parcor_bootstrap (x, lag, B):
     """
