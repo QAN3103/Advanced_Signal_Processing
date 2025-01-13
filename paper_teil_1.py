@@ -2,10 +2,9 @@
 # coding: utf-8
 
 from scipy.linalg import toeplitz
-import statsmodels.api as sm
 import numpy as np
 import matplotlib.pyplot as plt
-import statsmodels.api as sm
+
 
 
 def yule_walker(signal, order):
@@ -144,6 +143,7 @@ def bootstrap_ar(signal, B, order):
     for i in range(B):
         residual_star = bootrsp(residuals_orig)
         signal_star = calculate_signal(signal, ar_coeffs_orig,residual_star)
+        # Plot generated signal, to check for stability
         if i==10 or i == 100:
             plt.figure(figsize=(10, 6))
             plt.plot(list(range(0, 1000)), signal_star)
