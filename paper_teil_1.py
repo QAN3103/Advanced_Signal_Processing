@@ -5,8 +5,10 @@ from scipy.linalg import toeplitz
 import statsmodels.api as sm
 import numpy as np
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
 
-def yule_walker(signal):
+
+def yule_walker(signal, order):
     """
     Computes the AR coefficients of a signal using the Yule-Walker equations.
 
@@ -21,7 +23,6 @@ def yule_walker(signal):
     """
 
     # Berechne die Autokorrelation des Signals
-    order = 10;
     autocorr = np.correlate(signal, signal, mode='full')
     mid = len(autocorr) // 2
     r = autocorr[mid:mid + order + 1]
@@ -33,6 +34,7 @@ def yule_walker(signal):
     noise_variance = r[0] - np.dot(ar_coeffs, r_vector)  # Varianz des Rauschens
 
     return ar_coeffs, noise_variance
+
 
 def calculate_residuals(signal, ar_coeffs):
     """
@@ -47,12 +49,13 @@ def calculate_residuals(signal, ar_coeffs):
     
     """
     
-    order = 10;
-    residuals = np.empty(len(signal))
-    for i in range(len(signal)-order):
-        estimate = np.dot(ar_coeffs, signal[i:i + order][::-1])
-        residuals[i+order] = signal[i+order] + estimate
-    residuals = residuals[order:]
+    order = len(ar_coeffs);
+    residuals = np.empty(len(signal)-order)
+    for i in range(order,len(signal)):
+        signal2get =  signal[i-order:i]
+        estimate = np.dot(ar_coeffs, signal[i-order:i][::-1])
+        residuals[i-order] = signal[i] + estimate # Erste residual ist fuer i=order+1
+    
     
     return residuals
 
@@ -94,7 +97,7 @@ def bootrsp(data, B=1):
 
     return resamples
 
-def calcualte_signal(signal, ar_coeffs, residuals):
+def calculate_signal(signal, ar_coeffs, residuals):
     """
     Calculates the new signal, based on ordignal signal and residuals.
     
@@ -107,19 +110,23 @@ def calcualte_signal(signal, ar_coeffs, residuals):
     signal_star (np.ndarray): new signal
     """
     
-    order = 10
+    order = len(ar_coeffs)
     
-    signal_star = np.empty(len(signal))
+    N = len(signal)
     
-    for i in range(order):
-        signal_star[i] = signal[i]
-    for i in range(order, len(signal)):
-        estimate = np.dot(ar_coeffs, signal_star[i-order:i][::-1])
-        signal_star[i] = -estimate + residuals[i-order]
-        
+    signal_star = np.empty(N)
+    signal_star[:order] = signal[:order]  # x*(1) to x*(p)
+    
+    # Generate the bootstrap sample for n = p+1 to N
+    for n in range(order, N):
+        # Estimate the current value using AR model
+        estimate = np.dot(ar_coeffs, signal_star[n-order:n][::-1])
+        # Add the resampled residual to the estimate
+        signal_star[n] = -(-estimate + residuals[n - order]) #TODO: Why minus?? --> Otherwise AR-coefficients have wrong sign
+    
     return signal_star
 
-def bootstrap_ar(signal, B):
+def bootstrap_ar(signal, B, order):
     """
     Calculates B bootstrap estimates for AR coefficents.
     
@@ -130,16 +137,18 @@ def bootstrap_ar(signal, B):
     Returns:
     ar_coeffs_star (matrix[B,order(10)])
     """
-    
-    ar_coeffs_orig,_ = yule_walker(signal)
-    ar_coeffs_orig_2, _ = sm.regression.yule_walker(signal, order=10,
-                                       method="mle")
+
+    ar_coeffs_orig, _ = yule_walker(signal, order)
     residuals_orig = calculate_residuals(signal, ar_coeffs_orig)
     ar_coeffs_star_all = np.zeros((B, len(ar_coeffs_orig)))
     for i in range(B):
         residual_star = bootrsp(residuals_orig)
-        signal_star = calcualte_signal(signal, ar_coeffs_orig,residual_star)
-        ar_coeffs_star,_ = yule_walker(signal_star)
+        signal_star = calculate_signal(signal, ar_coeffs_orig,residual_star)
+        if i==10 or i == 100:
+            plt.figure(figsize=(10, 6))
+            plt.plot(list(range(0, 1000)), signal_star)
+                
+        ar_coeffs_star,_ = yule_walker(signal_star, order)
         ar_coeffs_star_all[i] = ar_coeffs_star
     return ar_coeffs_star_all
 
@@ -152,41 +161,41 @@ if __name__ == "__main__":
     # Generate a synthetic AR(10) process
     np.random.seed(0)
     n = 1000
-    true_ar_coeffs = np.array([0.75, -0.5, 0.25, 0.1, 0.05, 0, 0, 0, 0, 0])
+    true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
+    order = 10
     noise = np.random.randn(n)
     signal = np.zeros(n)
 
     for i in range(10, n):
-        signal[i] = np.dot(true_ar_coeffs, signal[i-10:i][::-1]) + noise[i]
-
+        signal[i] = np.dot(true_ar_coeffs, signal[i-order:i][::-1]) + noise[i]
+    
+    # Plot generated signal
+    x = list(range(0, n))
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, signal)
     # Test yule_walker function
-    estimated_ar_coeffs, noise_variance = yule_walker(signal)
-    print("Estimated AR Coefficients:", estimated_ar_coeffs)
-    print("Noise Variance:", noise_variance)
+    estimated_ar_coeffs, noise_variance = yule_walker(signal, order)
 
     # Test bootstrap_ar function
-    B = 100
-    bootstrap_coeffs = bootstrap_ar(signal, B)
+    B = 1000
+    bootstrap_coeffs = bootstrap_ar(signal, B, order)
     print("Bootstrap AR Coefficients (first 5):\n", bootstrap_coeffs[:5])
     lower_bound, upper_bound = calculate_confidence_intervals(bootstrap_coeffs)
 
-    # Plotten der Ergebnisse
+    # Plot results
     plt.figure(figsize=(10, 6))
 
-    # AR-Koeffizienten
-    ar_coeffs = np.array([0.75, -0.5, 0.25, 0.1, 0.05, 0, 0, 0, 0, 0])
-
-    # Schleife durch alle AR-Koeffizienten und zeichnen
-    for i in range(len(ar_coeffs)):
+    # Go through all AR-coefficients
+    for i in range(len(true_ar_coeffs)):
         plt.plot([i, i], [lower_bound[i], upper_bound[i]], color='blue', lw=2)  # Konfidenzintervall
-        plt.scatter(i, ar_coeffs[i], color='red', zorder=5)  # Wahre AR-Koeffizienten mit Kreuz
+        plt.scatter(i, true_ar_coeffs[i], color='red', zorder=5)  # Wahre AR-Koeffizienten mit Kreuz
         plt.scatter(i, bootstrap_coeffs[:, i].mean(), color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
 
-    # Achsenbeschriftungen und Titel
+    # Plot Confidence Interval
     plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
-    plt.xlabel("AR-Koeffizienten")
-    plt.ylabel("Wert")
-    plt.title("Konfidenzintervalle fuer AR-Koeffizienten (Bootstrap)")
+    plt.xlabel("AR-Coefficients")
+    plt.ylabel("Value")
+    plt.title("Confidence Interval of AR-Coefficients")
     plt.grid(True)
     plt.show()
 
