@@ -1,6 +1,7 @@
 
 import numpy as np
 import correlation as corr
+import bootstrap_resampling as bstr
 
 
 def compute_parcor(x, lag):
@@ -67,7 +68,7 @@ def parcor_bootstrap (x, lag, B):
         bootstrap_pacf (ndarray): PARCOR coefficients for bootstrap samples of shape [lag, B].
     """
     # Bootstrap resampling
-    sample = bootstrap_univariate(x, B)
+    sample = bstr.bootstrap_univariate(x, B)
     
     #initiate array to store parcor of the input data
     bootstrap_pacf = np.zeros((lag, B))
