@@ -4,6 +4,8 @@
 from scipy.linalg import toeplitz
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.io import wavfile
+
 
 
 
@@ -156,9 +158,15 @@ def calculate_confidence_intervals(bootstrap_coeffs, alpha=0.05):
     lower_bound = np.percentile(bootstrap_coeffs, 100 * (alpha / 2), axis=0)
     upper_bound = np.percentile(bootstrap_coeffs, 100 * (1 - alpha / 2), axis=0)
     return lower_bound, upper_bound
+
+def load_wave():
     
+    samplerate, data = wavfile.read('C:/Users/Jannis/Desktop/a_sound.wav')
+    print(data)
 if __name__ == "__main__":
     # Generate a synthetic AR(10) process
+    load_wave()
+
     np.random.seed(0)
     n = 1000
     true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
