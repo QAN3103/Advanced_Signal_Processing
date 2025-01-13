@@ -42,8 +42,9 @@ def compute_parcor(x, lag):
     
     #perform the next iterations
     for k in range(1, lag):
+        for j in range(k):
         #calculate parcor
-        a[k, k] = (r[k + 1] - sum(a[j, k - 1] * r[k - j] for j in range(k))) / sigma
+            a[k, k] = (r[k + 1] - sum(a[j, k - 1] * r[k - j])) / sigma
         #save parcor
         pacf[k] = a[k, k]
         #update previous parcor
