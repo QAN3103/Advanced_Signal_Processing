@@ -7,6 +7,43 @@
 import numpy as np
 
 
+# In[69]:
+
+
+def bootstrap_statistic(x, statfun, B, *args):
+    """
+    Compute bootstrap statistics manually using NumPy.
+
+    Parameters:
+        x (array-like): The input time series or dataset.
+        statfun (callable): Function to compute the statistic.
+        B (int): Number of bootstrap resamples.
+        *args: Additional arguments for the statistic function.
+
+    Returns:
+        stats (ndarray): Statistics computed for each bootstrap sample.
+    """
+    #create array to save statistics
+    stats = np.zeros(B)
+    #create matrix to store bootstrap resamples
+    bootstrap_sample = np.zeros((B, n))
+    #create matrix to store bootstrap indices
+    bootstrap_index = np.zeros((B, n), dtype=int)  # Store indices as integers
+    
+    for i in range(B):
+        # Generate random indices for the bootstrap sample
+        index = np.random.choice(n, size=n, replace=True)
+        
+        # Store the bootstrap indices
+        bootstrap_index[i, :] = index
+        
+        # Create the bootstrap sample based on the indices
+        bootstrap_sample[i, :] = x[index]
+        
+        # Compute the statistic
+        stats[i] = statfun(bootstrap_sample[i, :], *args)
+
+    return stats, bootstrap_sample, bootstrap_index
 # In[66]:
 
 
@@ -21,12 +58,11 @@ def bootstrap_univariate (input_data, B=1):
     with out(:,:,i), i = 1,...,B, being a resample of the input matrix.
         
     Parameters:
-        input_data (ndarray): input data, either a 1D vector or a 2D matrix. 
-        B (int, optional): number of bootstrap resamples (default B=1)  
+        input_data - input data 
+        B - number of bootstrap resamples (default B=1)  
 
     Returns:
-        output (ndarray): A matrix containing the bootstrap resamples. If the input is a vector, the output is of size [N,B].
-                          If the input is a matrix, the output is of size [N,M,B].
+        output - B bootstrap resamples of the input data  
 
     Created by A. M. Zoubir and D. R. Iskander May 1998
     
@@ -73,13 +109,13 @@ def bootstrap_bivariate (input_1, input_2, B=1):
     being resamples of the input vector.
 
     Parameters:
-        input_1 (ndarray): input data (first variate)
-        input_2 (ndarray): input data (second variate). If input_2 is not provided, the function runs bootrap_univariate by default.
-        B (int, optional): number of bootstrap resamples (default B=1) 
+        input_1 - input data (first variate)
+        input_2 - input data (second variate). If input_2 is not provided, the function runs bootrap_univariate by default.
+        B - number of bootstrap resamples (default B=1) 
     
     Returns: 
-        output_1 (ndarray): B bootstrap resamples of the first variate
-        output_2 (ndarray): B bootstrap resamples of the second variate
+        output_1 - B bootstrap resamples of the first variate
+        output_2 - B bootstrap resamples of the second variate
 
     Created by A. M. Zoubir and D. R. Iskander May 1998
     
