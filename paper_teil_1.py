@@ -148,7 +148,8 @@ def bootstrap_ar(signal, B, order):
         # Plot generated signal, to check for stability
         if i==10 or i == 100:
             plt.figure(figsize=(10, 6))
-            plt.plot(list(range(0, 1000)), signal_star)
+            plt.plot(list(range(0, len(signal_star))), signal_star)
+            plt.show()
                 
         ar_coeffs_star,_ = yule_walker(signal_star, order)
         ar_coeffs_star_all[i] = ar_coeffs_star
@@ -160,27 +161,35 @@ def calculate_confidence_intervals(bootstrap_coeffs, alpha=0.05):
     return lower_bound, upper_bound
 
 def load_wave():
-    
-    samplerate, data = wavfile.read('C:/Users/Jannis/Desktop/a_sound.wav')
-    print(data)
+    samplerate, data = wavfile.read('C:/Users/Jannis/Desktop/ch_sound_2.wav')
+    time = np.linspace(0, len(data) / samplerate, num=len(data))
+    plt.figure(figsize=(10, 5))
+    plt.plot(time, data)
+    plt.title('Diskretes Zeitsignal x(n)')
+    plt.xlabel('Zeit [s]')
+    plt.ylabel('Amplitude')
+    plt.grid()
+    plt.show()
+    return data, time
 if __name__ == "__main__":
     # Generate a synthetic AR(10) process
-    load_wave()
+    signal, time = load_wave()
 
     np.random.seed(0)
     n = 1000
     true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
     order = 10
     noise = np.random.randn(n)
-    signal = np.zeros(n)
+    #signal = np.zeros(n)
 
-    for i in range(10, n):
-        signal[i] = np.dot(true_ar_coeffs, signal[i-order:i][::-1]) + noise[i]
+    #for i in range(10, n):
+        #signal[i] = np.dot(true_ar_coeffs, signal[i-order:i][::-1]) + noise[i]
     
     # Plot generated signal
     x = list(range(0, n))
     plt.figure(figsize=(10, 6))
-    plt.plot(x, signal)
+    plt.plot(time, signal)#
+    plt.show()
     # Test yule_walker function
     estimated_ar_coeffs, noise_variance = yule_walker(signal, order)
 
@@ -206,5 +215,5 @@ if __name__ == "__main__":
     plt.title("Confidence Interval of AR-Coefficients")
     plt.grid(True)
     plt.show()
-
+    x = 5
 
