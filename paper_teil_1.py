@@ -161,7 +161,7 @@ def calculate_confidence_intervals(bootstrap_coeffs, alpha=0.05):
     return lower_bound, upper_bound
 
 def load_wave():
-    samplerate, data = wavfile.read('C:/Users/Jannis/Desktop/ch_sound_2.wav')
+    samplerate, data = wavfile.read('audio/a_sound.wav')
     time = np.linspace(0, len(data) / samplerate, num=len(data))
     plt.figure(figsize=(10, 5))
     plt.plot(time, data)
