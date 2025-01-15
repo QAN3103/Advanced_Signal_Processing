@@ -5,6 +5,7 @@ from scipy.linalg import toeplitz
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
+from scipy.signal import resample
 
 
 
@@ -170,14 +171,25 @@ def load_wave():
     plt.ylabel('Amplitude')
     plt.grid()
     plt.show()
-    return data, time
+    
+    data_new = resample(data,160)
+    time_new = resample(time,160)
+    plt.figure(figsize=(10, 5))
+    plt.plot(np.linspace(1,160,160), data_new)
+    plt.title('Diskretes Zeitsignal x(n)')
+    plt.xlabel('Zeit [s]')
+    plt.ylabel('Amplitude')
+    plt.grid()
+    plt.show()
+
+    return data_new, time
 if __name__ == "__main__":
     # Generate a synthetic AR(10) process
     signal, time = load_wave()
 
     np.random.seed(0)
     n = 1000
-    true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
+    #true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
     order = 10
     noise = np.random.randn(n)
     #signal = np.zeros(n)
@@ -186,9 +198,9 @@ if __name__ == "__main__":
         #signal[i] = np.dot(true_ar_coeffs, signal[i-order:i][::-1]) + noise[i]
     
     # Plot generated signal
-    x = list(range(0, n))
+    n = np.linspace(0,160,160)
     plt.figure(figsize=(10, 6))
-    plt.plot(time, signal)#
+    plt.plot(n, signal)#
     plt.show()
     # Test yule_walker function
     estimated_ar_coeffs, noise_variance = yule_walker(signal, order)
@@ -203,13 +215,13 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 6))
 
     # Go through all AR-coefficients
-    for i in range(len(true_ar_coeffs)):
+    for i in range(len(bootstrap_coeffs[1,:])):
         plt.plot([i, i], [lower_bound[i], upper_bound[i]], color='blue', lw=2)  # Konfidenzintervall
-        plt.scatter(i, true_ar_coeffs[i], color='red', zorder=5)  # Wahre AR-Koeffizienten mit Kreuz
         plt.scatter(i, bootstrap_coeffs[:, i].mean(), color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
 
     # Plot Confidence Interval
     plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
+    plt.ylim([-1.5,1])
     plt.xlabel("AR-Coefficients")
     plt.ylabel("Value")
     plt.title("Confidence Interval of AR-Coefficients")
