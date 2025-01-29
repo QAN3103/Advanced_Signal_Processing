@@ -75,12 +75,11 @@ def spectral_difference_bootstrap(original_signal, processed_signal):
     
     
 if __name__ == "__main__":
-    ch_sound,_ = paper_teil_1.load_wave('audio/ch_sound.wav',True, plot=False)
-    noise,_ = paper_teil_1.load_wave('audio/vehicle-movement-noise.wav',True, plot=False)
+    ch_sound,_ = paper_teil_1.load_wave('audio/ch_sound.wav',True, plot=True, normalize=True)
+    noise,_ = paper_teil_1.load_wave('audio/vehicle-movement-noise.wav',True, plot=True, normalize=True)
     
-    #ch_sound_sample = resample(ch_sound,160)
-    #noise_sample = resample(noise,160)
-    snr = -5
+
+    snr = 3
     noisy_signal = contaminate_signal_with_noise(ch_sound, noise, snr)
     
     plt.figure(figsize=(10, 6))
