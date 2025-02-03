@@ -7,7 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 from scipy.signal import resample
-
+from scipy.signal import lfilter
+import paper_teil_2 as p2
+from statsmodels.regression.linear_model import yule_walker as yw
+from statsmodels.regression.linear_model import burg
 
 
 
@@ -35,7 +38,10 @@ def yule_walker(signal, order):
 
     ar_coeffs = np.linalg.solve(R, r_vector)  # AR-Koeffizienten berechnen
     noise_variance = r[0] - np.dot(ar_coeffs, r_vector)  # Varianz des Rauschens
-
+    ar_coeffs, noise_variance = yw(signal,order)
+    poly = np.array([1]) + list(ar_coeffs)
+    poles = np.abs(np.roots(poly))
+    #if (np.any(poles) > 1): print("ar coeffs unstable")
     return ar_coeffs, noise_variance
 
 
@@ -102,7 +108,7 @@ def bootrsp(data, B=1):
 
 def calculate_signal(signal, ar_coeffs, residuals):
     """
-    Calculates the new signal, based on ordignal signal and residuals.
+    Calculates the new signal, based on original signal and residuals.
     
     Parameters:
     signal (np.ndarray): original signal
@@ -125,7 +131,7 @@ def calculate_signal(signal, ar_coeffs, residuals):
         # Estimate the current value using AR model
         estimate = np.dot(ar_coeffs, signal_star[n-order:n][::-1])
         # Add the resampled residual to the estimate
-        signal_star[n] = -(-estimate + residuals[n - order]) #TODO: Why minus?? --> Otherwise AR-coefficients have wrong sign
+        signal_star[n] = -(-estimate + residuals[n - order]) 
     
     return signal_star
 
@@ -140,147 +146,283 @@ def bootstrap_ar(signal, B, order):
     Returns:
     ar_coeffs_star (matrix[B,order(10)])
     """
-
+    # Step 1
     ar_coeffs_orig, _ = yule_walker(signal, order)
     residuals_orig = calculate_residuals(signal, ar_coeffs_orig)
+    
+    # Initialization of Step 2-4
     ar_coeffs_star_all = np.zeros((B, len(ar_coeffs_orig)))
     spectrum_all = np.zeros((B, 80+1))
     variance_all = np.zeros(B)
     for i in range(B):
+        # Step 2
         residual_star = bootrsp(residuals_orig)
         signal_star = calculate_signal(signal, ar_coeffs_orig,residual_star)
+        
         # Plot generated signal, to check for stability
-        if i==10 or i == 100:
-            plt.figure(figsize=(10, 6))
-            plt.plot(list(range(0, len(signal_star))), signal_star)
-            plt.show()
-                
-        ar_coeffs_star, variance = yule_walker(signal_star, order)
+        # if i==10 or i == 100:
+        #     plt.figure(figsize=(10, 6))
+        #     plt.title('Bootstrap Sample')
+        #     plt.plot(list(range(0, len(signal_star))), signal_star)
+        #     plt.show()
+        # Step 2.1 centering data
+        signal_star = signal_star - np.mean(signal_star)
+        
+            
+        # Step 3        
+        ar_coeffs_star, variance_star = yule_walker(signal_star, order)
+        
+        # Save all Bootstrap estimates
         ar_coeffs_star_all[i] = ar_coeffs_star
-        variance_all[i] = variance
-        spectrum = calculate_spectrum(ar_coeffs_star, variance)
+        variance_all[i] = variance_star
+        
+        # Calculate Spectrum of each Bootstrap estimate
+        spectrum = calculate_spectrum(-ar_coeffs_star, variance_star)
         spectrum_all[i] = spectrum
+        
     return ar_coeffs_star_all, variance_all, spectrum_all
 
 def calculate_confidence_intervals(bootstrap_coeffs, alpha=0.05):
+    """ 
+    Calculates Confidence Bounds and Median
+    """
     lower_bound = np.percentile(bootstrap_coeffs, 100 * (alpha / 2), axis=0)
     upper_bound = np.percentile(bootstrap_coeffs, 100 * (1 - alpha / 2), axis=0)
-    return lower_bound, upper_bound
+    median = np.percentile(bootstrap_coeffs, 50, axis=0)
+    return lower_bound, upper_bound, median
 
 def calculate_spectrum(ar_coeffs, variance, N=160):
+    """
+    Calculates the spectrum as described in paper
+    """
     k = np.arange(0, N // 2 + 1)  # Create an array of k from 0 to N/2
     omega = 2 * np.pi * k / N   # Calculate ωk for each k
-    Cxx = np.zeros(len(omega))
+    Cxx = np.empty(len(omega))
     for i in range(len(omega)):
         sum = 0
         for k in range(len(ar_coeffs)):
             sum = sum + ar_coeffs[k] * np.exp(-omega[i] * (k + 1) * 1j)
-        Cxx[i] = variance / pow(np.abs(1+ sum), 2)
+        Cxx[i] = (1/(2*pi))*(variance / pow(np.abs(1+ sum), 2))
     return Cxx
 
-def load_wave(filepath):
+def load_wave(filepath, downsample, plot, normalize):
+    """
+    Loads wave file and returns discrete signal
+    """
     samplerate, data = wavfile.read(filepath)
     time = np.linspace(0, len(data) / samplerate, num=len(data))
-    plt.figure(figsize=(10, 5))
-    plt.plot(time, data)
-    plt.title('Diskretes Zeitsignal x(n)')
-    plt.xlabel('Zeit [s]')
-    plt.ylabel('Amplitude')
-    plt.grid()
-    plt.show()
-    
-    data_new = resample(data,160)
-    time_new = resample(time,160)
-    plt.figure(figsize=(10, 5))
-    plt.plot(np.linspace(1,160,160), data_new)
-    plt.title('Diskretes Zeitsignal x(n)')
-    plt.xlabel('Zeit [s]')
-    plt.ylabel('Amplitude')
-    plt.grid()
-    plt.show()
+    if plot:
+        plt.figure(figsize=(10, 5))
+        plt.plot(time, data)
+        plt.title('Original Timeseries')
+        plt.xlabel('Zeit [s]')
+        plt.ylabel('Amplitude')
+        plt.grid()
+    if downsample:
+        data = resample(data,160)
+        time = resample(time,160)
+        if normalize:
+            max_value = np.max(np.abs(data))
+            data = data /(100*max_value)
+        if plot:
+            plt.figure(figsize=(10, 5))
+            plt.plot(np.linspace(1,160,160), data)
+            plt.title('Resampled Timeseries (N=160)')
+            plt.xlabel('n')
+            plt.ylabel('x(n)')
+            plt.grid()
+    else:
+        N = len(data)
+        data = resample(data,N)
+        time = resample(time, N)
+        if normalize:
+            max_value = np.max(np.abs(data))
+            data = data /(100*max_value)
+        if plot:
+            plt.figure(figsize=(10, 5))
+            plt.plot(np.linspace(1, N,N), data)
+            plt.title('Resampled Timeseries (N=high default)')
+            plt.xlabel('n')
+            plt.ylabel('x(n)')
+            plt.grid()
+    if plot: plt.show()
 
-    return data_new, time
+    return data, time
+
+def generate_ar_process(ar_coeffs, N, noise_var=1):
+    """
+    Generates discrete time signal of an AR(p) process
+    
+    Parameter:
+    - ar_coeffs: Array der AR-Koeffizienten (p Elemente)
+    - N: Anzahl der zu simulierenden Punkte
+    - noise_var: Varianz des weißen Rauschens e(n)
+    
+    Rückgabe:
+    - x: Generierte AR-Zeitreihe
+    """
+    p = len(ar_coeffs)  # Ordnung des AR-Prozesses
+    x = np.zeros(N)     # Initialisiere Zeitreihe
+    noise = np.random.normal(0, np.sqrt(noise_var), N)  # Weißes Rauschen e(n)
+
+    # Initialisierung mit Zufallswerten für die ersten p Werte
+    x[:p] = np.random.normal(0, 1, p)
+
+    # Rekursive Berechnung von x(n) nach der AR-Gleichung
+    for n in range(p, N):
+        x[n] = -np.dot(ar_coeffs, x[n-p:n][::-1]) + noise[n]  # x(n) = -sum(a_k * x(n-k)) + e(n)
+
+    return x
+
+
+    
 if __name__ == "__main__":
-    # Generate a synthetic AR(10) process
-    signal, time = load_wave('audio/ch_sound.wav')
-
-    np.random.seed(0)
-    n = 1000
-    #true_ar_coeffs = np.array([0.8, -0.6, 0.4, -0.2, 0.1,-0.05, 0.025, -0.0125, 0.00625, -0.003125])
+    # Load wave files and set general variables
     order = 10
-    noise = np.random.randn(n)
-    #signal = np.zeros(n)
-
-    #for i in range(10, n):
-        #signal[i] = np.dot(true_ar_coeffs, signal[i-order:i][::-1]) + noise[i]
-    
-    # Plot generated signal
-    n = np.linspace(0,160,160)
-    plt.figure(figsize=(10, 6))
-    plt.plot(n, signal)#
-    plt.show()
-    # Test yule_walker function
-    estimated_ar_coeffs, noise_variance = yule_walker(signal, order)
-
-    # Test bootstrap_ar function
     B = 1000
-    bootstrap_coeffs, sigma, spectrum = bootstrap_ar(signal, B, order)
+    signal_sampled, time_sampled = load_wave('audio/a_sound.wav', downsample=True, plot=False, normalize=True)
+    signal_original, time_original = load_wave('audio/a_sound.wav', downsample=False, plot=False, normalize=True)
+
+    
+    # true_ar_coeffs = np.array([0.5, -0.3, 0.2, -0.1, 0.05, -0.03, 0.02, -0.01, 0.005, -0.002  ])
+    # poly = np.array([1] + list(-true_ar_coeffs))
+    # poles = np.abs(np.roots(poly))
+
+    
+
+    # Yule-Walker
+    # estimated_ar_coeffs, noise_variance = yule_walker(signal_sampled, order)
+    ar_coeffs_original, noise_variance_original = yule_walker(signal_original, order)
+
+    # Bootstrap
+    bootstrap_coeffs, sigma, spectrum = bootstrap_ar(signal_sampled, B, order)
     print("Bootstrap AR Coefficients (first 5):\n", bootstrap_coeffs[:5])
-    lower_bound_ar, upper_bound_ar = calculate_confidence_intervals(bootstrap_coeffs)
-    lower_bound_sigma, upper_bound_sigma = calculate_confidence_intervals(sigma)
+    # Calculate Confidence Bounds of Spectrum and AR Coeffs
+    lower_bound_ar, upper_bound_ar, median_ar = calculate_confidence_intervals(bootstrap_coeffs)
     mean_ar = np.mean(bootstrap_coeffs, axis=0)
-    mean_sigma = np.mean(sigma, axis=0)
-
-    mean_spectrum = calculate_spectrum(mean_ar, mean_sigma)
-    upper_spectrum = calculate_spectrum(upper_bound_ar, upper_bound_sigma)
-    lower_spectrum = calculate_spectrum(lower_bound_ar, lower_bound_sigma)
-    
-    lower_bound_spectrum, upper_bound_spectrum = calculate_confidence_intervals(spectrum)
-    mean_spectrum_2 = np.mean(spectrum, axis=0)
-    ar_coeffs_orig, variance_orig = yule_walker(signal, order)
-    spectrum_orig = calculate_spectrum(ar_coeffs_orig, variance_orig)
-    plt.figure(figsize=(10,6))
-    N = len(mean_spectrum)
-    n = np.linspace(0,1,N)
-    plt.plot(n, spectrum_orig, label='mean', linestyle='-')
-    plt.plot(n, upper_bound_spectrum, label='upper', linestyle='--')
-    plt.plot(n, lower_bound_spectrum, label='lower', linestyle='--')
-    plt.title('Bootstrap Spectrum')
-    plt.legend()
-    plt.show()
-
-
-    # Plot results
-    plt.figure(figsize=(10,6))
-    N = len(mean_spectrum)
-    n = np.linspace(0,1,N)
-    plt.plot(n, mean_spectrum, label='mean', linestyle='-')
-    plt.plot(n, upper_spectrum, label='upper', linestyle='--')
-    plt.plot(n, lower_spectrum, label='lower', linestyle='--')
-    plt.title('Bootstrap Spectrum')
-    plt.legend()
-    plt.show()
-
+    lower_bound_spectrum, upper_bound_spectrum, median_spectrum = calculate_confidence_intervals(spectrum)
+    mean_spectrum = np.mean(spectrum, axis=0)
 
     
-
-
-
-
+    ### Figure 1 AR-Coefficients Conf Interval + Median
     plt.figure(figsize=(10, 6))
-
     # Go through all AR-coefficients
-    for i in range(len(bootstrap_coeffs[1,:])):
-        plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2)  # Konfidenzintervall
-        plt.scatter(i, bootstrap_coeffs[:, i].mean(), color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
-
     # Plot Confidence Interval
+    for i in range(len(bootstrap_coeffs[1,:])):
+        if i == 0:
+            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
+            plt.scatter(i, median_ar[i], color='green', marker='x', label='median')  # Durchschnitt der Bootstrap-Koeffizienten
+            #plt.scatter(i,ar_coeffs_original[i], color='blue', marker='x', label='original') # AR Coeffs estimated from original data
+        else:
+            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2)  # Konfidenzintervall
+            plt.scatter(i, median_ar[i], color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
+            #plt.scatter(i,ar_coeffs_original[i], color='blue', marker='x') # AR Coeffs estimated from original data
+
+    
     plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
     plt.ylim([-1.5,1])
     plt.xlabel("AR-Coefficients")
     plt.ylabel("Value")
     plt.title("Confidence Interval of AR-Coefficients")
+    plt.legend()
     plt.grid(True)
+    
+    plt.figure(figsize=(10, 6))
+
+    ### Figure 2 AR-Coefficients Conf Interval + Median
+    # Go through all AR-coefficients
+    # Plot Confidence Interval
+    for i in range(len(bootstrap_coeffs[1,:])):
+        if i == 0:
+            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
+            plt.scatter(i, mean_ar[i], color='green', marker='x', label='mean')  # Durchschnitt der Bootstrap-Koeffizienten
+            plt.scatter(i,ar_coeffs_original[i], color='yellow', marker='s', label='original') # AR Coeffs estimated from original data
+        else:
+            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2)  # Konfidenzintervall
+            plt.scatter(i, mean_ar[i], color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
+            plt.scatter(i,ar_coeffs_original[i], color='yellow', marker='s') # AR Coeffs estimated from original data
+    plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
+    plt.ylim([-1.5,1])
+    plt.xlabel("AR-Coefficients")
+    plt.ylabel("Value")
+    plt.title("Confidence Interval of AR-Coefficients")
+    plt.legend()
+    plt.grid(True)
+    
+    ### Figure 3: Confidence Bounds of Spectrum + Median
+    plt.figure(figsize=(10, 6))
+    n = np.linspace(0,1,81)
+    plt.plot(n, 10*np.log10(np.abs(upper_bound_spectrum)),label="upper bound", linestyle="--", color="black")
+    plt.plot(n, 10*np.log10(np.abs(lower_bound_spectrum)), label="lower bound", linestyle="-.", color="black")
+    plt.plot(n, 10*np.log10(np.abs(median_spectrum)), label="median", linestyle= "-", color="blue")
+    plt.grid(True)
+    plt.legend()
+    plt.ylabel("C_xx [dB]")
+    plt.xlabel("w/pi")
+    plt.title('Confidence Bounds of Spectrum; a-sound')
+
+    ### Figure 4: Confidence Bounds of Spectrum + Mean
+    plt.figure(figsize=(10, 6))
+    n = np.linspace(0,1,81)
+    plt.plot(n, 10*np.log10(np.abs(upper_bound_spectrum)),label="upper bound", linestyle="--", color="black")
+    plt.plot(n, 10*np.log10(np.abs(lower_bound_spectrum)), label="lower bound", linestyle="-.", color="black")
+    plt.plot(n, 10*np.log10(np.abs(mean_spectrum)), label="mean", linestyle= "-", color="blue")
+    plt.grid(True)
+    plt.legend()
+    plt.ylabel("C_xx [dB]")
+    plt.xlabel("w/pi")
+    plt.title('Confidence Bounds of Spectrum; a-sound')
+
+
+    ### test Bootstrap on synthetic Signal
+    ar_signal = generate_ar_process(-median_ar, 160)
+    ar_coeffs_firtsestimate, variance_syn = yule_walker(ar_signal,10)
+    spectrum_syn = calculate_spectrum(median_ar, variance_syn)
+    plt.figure(figsize=(10, 6))
+    n = np.linspace(0,160,160)
+    ### Figure 5: synthetic Signal
+    plt.plot(n, ar_signal)
+    plt.title("synthetic AR-process")
+    plt.ylabel('x(n)')
+    plt.xlabel('n')
+    ### Figure 6: Spectrum of synthetic signal
+    plt.figure()
+    w = np.linspace(0,1,81)
+    plt.plot(w,10*np.log10(spectrum_syn))
+    plt.title("Spectrum of synthetic AR-process")
+    plt.ylabel('C_xx')
+    plt.xlabel('w/pi')
+
+
+    estimated_ar_syn, _, spectrum_syn = bootstrap_ar(ar_signal,1000,10)
+    ar_sy_lower_bound, ar_sy_upper_bound, ar_sy_median = calculate_confidence_intervals(estimated_ar_syn)
+    
+    ### Figure 7: AR Coeefs Conf Interval + Median + Original of synthetic signal
+    plt.figure(figsize=(10, 6))
+
+    # Go through all AR-coefficients
+    # Plot Confidence Interval
+    for i in range(len(estimated_ar_syn[1,:])):
+        if i == 0:
+            plt.plot([i, i], [ar_sy_lower_bound[i], ar_sy_upper_bound[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
+            plt.scatter(i, ar_sy_median[i], color='green', marker='x', label='median')  # Durchschnitt der Bootstrap-Koeffizienten
+            plt.scatter(i,median_ar[i], color='red', marker='x', label='original') # AR Coeffs estimated from original data
+        else:
+            plt.plot([i, i], [ar_sy_lower_bound[i], ar_sy_upper_bound[i]], color='blue', lw=2)  # Konfidenzintervall
+            plt.scatter(i, ar_sy_median[i], color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
+            plt.scatter(i,median_ar[i], color='red', marker='x') # AR Coeffs estimated from original data
+
+
+    plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
+    #plt.ylim([-1.5,1])
+    plt.xlabel("AR-Coefficients")
+    plt.ylabel("Value")
+    plt.title("Confidence Interval of AR-Coefficients, Based on synthetic signal")
+    plt.legend()
+    plt.grid(True)
+
+        
+
     plt.show()
-    x = 5
+
 
