@@ -274,12 +274,30 @@ def generate_ar_process(ar_coeffs, N, noise_var=1):
 
     return x
 
+def calculate_coverage(true_ar_coeffs, ar_signal,B):
+    order = len(true_ar_coeffs)
+    is_covered = np.empty([B,order])
+    for i in range(B):
+        ar_coeffs_boot,_,_ = bootstrap_ar(ar_signal,1000,order)
+        lower,upper,_=calculate_confidence_intervals(ar_coeffs_boot)
+        for k in range(order):
+            if(lower[k] <= true_ar_coeffs[k] <= upper[k]):
+                is_covered[i,k] = 1
+            else:
+                is_covered[i,k] = 0
+    coverage = np.empty(order)
+    for i in range(order):
+        coverage[i] = np.sum(is_covered[:,i])/B
+    return coverage        
+
+
 
     
 if __name__ == "__main__":
     # Load wave files and set general variables
     order = 10
     B = 1000
+    k = np.arange(1,11)
     signal_sampled, time_sampled = load_wave('audio/a_sound.wav', downsample=True, plot=False, normalize=True)
     signal_original, time_original = load_wave('audio/a_sound.wav', downsample=False, plot=False, normalize=True)
 
@@ -306,32 +324,35 @@ if __name__ == "__main__":
     
     ### Figure 1 AR-Coefficients Conf Interval + Median
     plt.figure(figsize=(10, 6))
+    low = lower_bound_ar
+    high = upper_bound_ar
+    med = median_ar
+    y_err_low = np.empty(len(low))
+    y_err_high = np.empty(len(high))
+    for i in range(len(low)):
+        y_err_low[i] = med[i] - low[i]
+        y_err_high[i] = high[i] - med[i] 
     # Go through all AR-coefficients
     # Plot Confidence Interval
-    for i in range(len(bootstrap_coeffs[1,:])):
-        if i == 0:
-            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
-            plt.scatter(i, median_ar[i], color='green', marker='x', label='median')  # Durchschnitt der Bootstrap-Koeffizienten
-            #plt.scatter(i,ar_coeffs_original[i], color='blue', marker='x', label='original') # AR Coeffs estimated from original data
-        else:
-            plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2)  # Konfidenzintervall
-            plt.scatter(i, median_ar[i], color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
-            #plt.scatter(i,ar_coeffs_original[i], color='blue', marker='x') # AR Coeffs estimated from original data
-
-    
-    plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
+    plt.errorbar(k,med,[y_err_low, y_err_high], fmt='x', color='black', ecolor='blue', capsize=4, label='confidence int.')
+    plt.scatter([], [], marker='x', color='black', label='median')
+    plt.xticks(np.arange(10), [i+1 for i in range(10)])
     plt.ylim([-1.5,1])
-    plt.xlabel("AR-Coefficients")
-    plt.ylabel("Value")
+    # plt.xlabel("AR-Coefficients")
+    # plt.ylabel("Value")
     plt.title("Confidence Interval of AR-Coefficients")
-    plt.legend()
+    #plt.legend()
+    plt.xlabel(r'$k$', fontsize=14)
+    plt.ylabel(r'$a_k$', fontsize=14)
     plt.grid(True)
     
-    plt.figure(figsize=(10, 6))
 
+    
+    """
     ### Figure 2 AR-Coefficients Conf Interval + Median
     # Go through all AR-coefficients
     # Plot Confidence Interval
+    plt.figure(figsize=(10, 6))
     for i in range(len(bootstrap_coeffs[1,:])):
         if i == 0:
             plt.plot([i, i], [lower_bound_ar[i], upper_bound_ar[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
@@ -348,7 +369,7 @@ if __name__ == "__main__":
     plt.title("Confidence Interval of AR-Coefficients")
     plt.legend()
     plt.grid(True)
-    
+    """
     ### Figure 3: Confidence Bounds of Spectrum + Median
     plt.figure(figsize=(10, 6))
     n = np.linspace(0,1,81)
@@ -357,10 +378,11 @@ if __name__ == "__main__":
     plt.plot(n, 10*np.log10(np.abs(median_spectrum)), label="median", linestyle= "-", color="blue")
     plt.grid(True)
     plt.legend()
-    plt.ylabel("C_xx [dB]")
-    plt.xlabel("w/pi")
-    plt.title('Confidence Bounds of Spectrum; a-sound')
+    plt.ylabel(r"$C_{xx}(e^{j\omega})$")
 
+    plt.xlabel(r"$\omega/\pi$")
+    plt.title('Confidence Bounds of Spectrum; a-sound')
+    """
     ### Figure 4: Confidence Bounds of Spectrum + Mean
     plt.figure(figsize=(10, 6))
     n = np.linspace(0,1,81)
@@ -372,10 +394,11 @@ if __name__ == "__main__":
     plt.ylabel("C_xx [dB]")
     plt.xlabel("w/pi")
     plt.title('Confidence Bounds of Spectrum; a-sound')
-
+    """
 
     ### test Bootstrap on synthetic Signal
     ar_signal = generate_ar_process(-median_ar, 160)
+    #coverage = calculate_coverage(median_ar,ar_signal,100)
     ar_coeffs_firtsestimate, variance_syn = yule_walker(ar_signal,10)
     spectrum_syn = calculate_spectrum(median_ar, variance_syn)
     plt.figure(figsize=(10, 6))
@@ -390,8 +413,9 @@ if __name__ == "__main__":
     w = np.linspace(0,1,81)
     plt.plot(w,10*np.log10(spectrum_syn))
     plt.title("Spectrum of synthetic AR-process")
-    plt.ylabel('C_xx')
-    plt.xlabel('w/pi')
+    plt.ylabel(r"$C_{xx}(e^{j\omega})$")
+
+    plt.xlabel(r"$\omega/\pi$")
 
 
     estimated_ar_syn, _, spectrum_syn = bootstrap_ar(ar_signal,1000,10)
@@ -402,26 +426,31 @@ if __name__ == "__main__":
 
     # Go through all AR-coefficients
     # Plot Confidence Interval
-    for i in range(len(estimated_ar_syn[1,:])):
-        if i == 0:
-            plt.plot([i, i], [ar_sy_lower_bound[i], ar_sy_upper_bound[i]], color='blue', lw=2, label='confidence interval')  # Konfidenzintervall
-            plt.scatter(i, ar_sy_median[i], color='green', marker='x', label='median')  # Durchschnitt der Bootstrap-Koeffizienten
-            plt.scatter(i,median_ar[i], color='red', marker='x', label='original') # AR Coeffs estimated from original data
-        else:
-            plt.plot([i, i], [ar_sy_lower_bound[i], ar_sy_upper_bound[i]], color='blue', lw=2)  # Konfidenzintervall
-            plt.scatter(i, ar_sy_median[i], color='green', marker='x')  # Durchschnitt der Bootstrap-Koeffizienten
-            plt.scatter(i,median_ar[i], color='red', marker='x') # AR Coeffs estimated from original data
+    
+    plt.figure(figsize=(10, 6))
+    low = ar_sy_lower_bound
+    high = ar_sy_upper_bound
+    med = ar_sy_median
+    y_err_low = np.empty(len(low))
+    y_err_high = np.empty(len(high))
+    for i in range(len(low)):
+        y_err_low[i] = med[i] - low[i]
+        y_err_high[i] = high[i] - med[i] 
+    # Go through all AR-coefficients
+    # Plot Confidence Interval
+    plt.errorbar(k,med,[y_err_low, y_err_high], fmt='x', color='black', ecolor='blue', capsize=4, label='confidence int.')
+    plt.scatter([], [], marker='x', color='black', label='median')
 
 
-    plt.xticks(np.arange(10), [f"AR{i+1}" for i in range(10)])
+    plt.xticks(np.arange(10), [i+1 for i in range(10)])
     #plt.ylim([-1.5,1])
-    plt.xlabel("AR-Coefficients")
-    plt.ylabel("Value")
     plt.title("Confidence Interval of AR-Coefficients, Based on synthetic signal")
     plt.legend()
+    plt.xlabel(r'$k$', fontsize=14)
+    plt.ylabel(r'$a_k$', fontsize=14)
     plt.grid(True)
 
-        
+    
 
     plt.show()
 

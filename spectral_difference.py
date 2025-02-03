@@ -38,17 +38,18 @@ def spectral_difference_bootstrap(original_signal, processed_signal):
         for k in range(80):
             # Calculate log spectral distance for each bootsrap sample
             V_star[i,k] = 10 * (np.log10(spectrum_orig[i,k])- np.log10(spectrum_processed[i,k]))
-        rms_star[i] = np.sqrt(np.sum(pow(np.abs(V_star[i,:]),2)))
+        rms_star[i] = np.sqrt((1/80)*np.sum(pow(np.abs(V_star[i,:]),2)))
     lower_bound_V, upper_bound_V, median_V = paper_teil_1.calculate_confidence_intervals(V_star)
     mean_V = np.mean(V_star, axis=0)
     n = np.linspace(0,1,80)
     n2 = np.linspace(0,1,81)
     plt.figure()
     plt.plot(n,lower_bound_V,linestyle='--', label='lower bound')
-    plt.plot(n,median_V, linestyle='-', label='median')
+    plt.plot(n,mean_V, linestyle='-', label='mean')
     plt.plot(n,upper_bound_V, linestyle='dashdot', label='upper bound')
-    plt.ylabel('V(e^jw) [dB]')
-    plt.xlabel('w/pi')
+    plt.ylabel(r"$V(e^{j\omega})$")
+
+    plt.xlabel(r"$\omega/\pi$")
     #plt.ylim([-10,15])
     plt.title('Spectral Difference Confidence Interval, calculated all V')
     plt.legend()
@@ -59,18 +60,18 @@ def spectral_difference_bootstrap(original_signal, processed_signal):
     plt.scatter(rms_median,0.1,marker="x",color="red")
     plt.title('RMS of log spectral distance')
     plt.ylabel('Rel. frequency')
-    plt.xlabel('RMS of log spectral distance, d_2 [dB]')
+    plt.xlabel(r"RMS of log spectral distance, $d_2$ [dB]")
     plt.show()
     #TODO: Clean code
 
     
     
 if __name__ == "__main__":
-    ch_sound,_ = paper_teil_1.load_wave('audio/ch_sound.wav',True, plot=True, normalize=True)
-    noise,_ = paper_teil_1.load_wave('audio/vehicle-movement-noise.wav',True, plot=True, normalize=True)
+    ch_sound,_ = paper_teil_1.load_wave('audio/ch_sound.wav',True, plot=False, normalize=True)
+    noise,_ = paper_teil_1.load_wave('audio/vehicle-movement-noise.wav',True, plot=False, normalize=True)
     
 
-    snr = 3
+    snr = -20
     noisy_signal = contaminate_signal_with_noise(ch_sound, noise, snr)
     
     plt.figure(figsize=(10, 6))
