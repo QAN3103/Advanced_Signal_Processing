@@ -9,7 +9,6 @@ import numpy as np
 
 # In[69]:
 
-
 def bootstrap_statistic(x, statfun, B, *args):
     """
     Compute bootstrap statistics manually using NumPy.
@@ -23,6 +22,7 @@ def bootstrap_statistic(x, statfun, B, *args):
     Returns:
         stats (ndarray): Statistics computed for each bootstrap sample.
     """
+    n = len (x)
     #create array to save statistics
     stats = np.zeros(B)
     #create matrix to store bootstrap resamples
@@ -160,14 +160,6 @@ def bootstrap_bivariate (input_1, input_2, B=1):
             return output_1, output_2
 
 
-
-# In[67]:
-
-
-get_ipython().system('jupyter nbconvert --to script bootstrap_resampling.ipynb')
-
-
-# In[ ]:
 
 
 
