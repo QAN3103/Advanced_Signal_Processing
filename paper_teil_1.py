@@ -232,10 +232,13 @@ def load_wave(filepath, downsample, plot, normalize):
         if plot:
             plt.figure(figsize=(10, 5))
             plt.plot(np.linspace(1,160,160), data)
-            plt.title('Resampled Timeseries (N=160)')
+            plt.title('Speech Signal')
             plt.xlabel('n')
             plt.ylabel('x(n)')
             plt.grid()
+            ind = np.arange(1,len(data)+1)
+            txt = np.column_stack((ind,data))
+            np.savetxt("txtfiles/speech_signal.dat", txt, fmt="%f", delimiter="\t",header="Index\tWert", comments="")
     else:
         N = len(data)
         data = resample(data,N)
@@ -302,16 +305,16 @@ if __name__ == "__main__":
     # Load wave files and set general variables
     order = 10
     B = 1000
-    k = np.arange(0,10)
-    i = 0
-    while i<2:
-        if i==0:
-            signal_sampled, time_sampled = load_wave('audio/a_sound.wav', downsample=True, plot=False, normalize=True)
+    k = np.arange(1,11)
+    z = 0
+    while z<2:
+        if z==0:
+            signal_sampled, time_sampled = load_wave('audio/a_sound.wav', downsample=True, plot=True, normalize=True)
             signal_original, time_original = load_wave('audio/a_sound.wav', downsample=False, plot=False, normalize=True)
-        if i==1:
-            signal_sampled, time_sampled = load_wave('audio/ch_sound.wav', downsample=True, plot=False, normalize=True)
+        if z==1:
+            signal_sampled, time_sampled = load_wave('audio/ch_sound.wav', downsample=True, plot=True, normalize=True)
             signal_original, time_original = load_wave('audio/ch_sound.wav', downsample=False, plot=False, normalize=True)
-        i=i+1
+        z=z+1
     
         # true_ar_coeffs = np.array([0.5, -0.3, 0.2, -0.1, 0.05, -0.03, 0.02, -0.01, 0.005, -0.002  ])
         # poly = np.array([1] + list(-true_ar_coeffs))
@@ -343,7 +346,9 @@ if __name__ == "__main__":
         y_err_high = np.empty(len(high))
         for i in range(len(low)):
             y_err_low[i] = med[i] - low[i]
-            y_err_high[i] = high[i] - med[i] 
+            y_err_high[i] = high[i] - med[i]
+        txt = np.column_stack((k,med,y_err_low,y_err_high))
+        np.savetxt("txtfiles/ar_conf_a.dat", txt, fmt="%f", delimiter="\t",header="Index\tMedian\terrorlow\terrorhigh", comments="")
         # Go through all AR-coefficients
         # Plot Confidence Interval
         plt.errorbar(k,med,[y_err_low, y_err_high], fmt='x', color='black', ecolor='blue', capsize=4, label='confidence int.')
@@ -354,8 +359,8 @@ if __name__ == "__main__":
         # plt.ylabel("Value")
         plt.title("Confidence Interval of AR-Coefficients")
         #plt.legend()
-        plt.xlabel(r'$k$', fontsize=14)
-        plt.ylabel(r'$a_k$', fontsize=14)
+        plt.xlabel(r'$k$', fontsize=12)
+        plt.ylabel(r'$a_k$', fontsize=12)
         plt.grid(True)
 
         ### Figure 2 Parcor-Coefficients Conf Interval + Median
@@ -378,8 +383,8 @@ if __name__ == "__main__":
         # plt.ylabel("Value")
         plt.title("Confidence Interval of Parcor-Coefficients")
         #plt.legend()
-        plt.xlabel(r'$k$', fontsize=14)
-        plt.ylabel(r'$a_k$', fontsize=14)
+        plt.xlabel(r'$k$', fontsize=12)
+        plt.ylabel(r'$r_k$', fontsize=12)
         plt.grid(True)
     
 
@@ -413,11 +418,14 @@ if __name__ == "__main__":
         plt.plot(n, 10*np.log10(np.abs(lower_bound_spectrum)), label="lower bound", linestyle="-.", color="black")
         plt.plot(n, 10*np.log10(np.abs(median_spectrum)), label="median", linestyle= "-", color="blue")
         plt.grid(True)
-        plt.legend()
-        plt.ylabel(r"$C_{xx}(e^{j\omega})$")
-
-        plt.xlabel(r"$\omega/\pi$")
+        plt.legend(fontsize=12)
+        plt.ylabel(r"$C_{xx}(e^{j\omega})$", fontsize=12)
+        plt.xlabel(r"$\omega/\pi$", fontsize=12)
         plt.title('Confidence Bounds of Spectrum')
+
+        txt = np.column_stack((n,10*np.log10(abs(median_spectrum)),10*np.log10(abs(lower_bound_spectrum)),10*np.log10(abs(upper_bound_spectrum))))
+        np.savetxt("txtfiles/spectrum_conf_a.dat", txt, fmt="%f", delimiter="\t",header="Index\tmedian\tlowerbound\tupperbound", comments="")
+
         """
         ### Figure 4: Confidence Bounds of Spectrum + Mean
         plt.figure(figsize=(10, 6))
@@ -441,17 +449,17 @@ if __name__ == "__main__":
         n = np.linspace(0,160,160)
         ### Figure 5: synthetic Signal
         plt.plot(n, ar_signal)
-        plt.title("synthetic AR-process")
-        plt.ylabel('x(n)')
-        plt.xlabel('n')
+        plt.title("Synthetic AR-process")
+        plt.ylabel('x(n)', fontsize=12)
+        plt.xlabel('n', fontsize=12)
         ### Figure 6: Spectrum of synthetic signal
         plt.figure()
         w = np.linspace(0,1,81)
         plt.plot(w,10*np.log10(spectrum_syn))
         plt.title("Spectrum of synthetic AR-process")
-        plt.ylabel(r"$C_{xx}(e^{j\omega})$")
+        plt.ylabel(r"$C_{xx}(e^{j\omega})$", fontsize=12)
 
-        plt.xlabel(r"$\omega/\pi$")
+        plt.xlabel(r"$\omega/\pi$", fontsize=12)
 
         parcor_coeffs_orig = parcor.ar_to_parcor(median_ar)
 
@@ -479,9 +487,9 @@ if __name__ == "__main__":
         plt.xticks(np.arange(10), [i+1 for i in range(10)])
         #plt.ylim([-1.5,1])
         plt.title("Confidence Interval of AR-Coefficients, Based on synthetic signal")
-        plt.legend()
-        plt.xlabel(r'$k$', fontsize=14)
-        plt.ylabel(r'$a_k$', fontsize=14)
+        plt.legend(fontsize=12)
+        plt.xlabel(r'$k$', fontsize=12)
+        plt.ylabel(r'$a_k$', fontsize=12)
         plt.grid(True)
 
         ### Figure 8: Parcor Coeefs Conf Interval + Median + Original of synthetic signal    
@@ -504,9 +512,9 @@ if __name__ == "__main__":
         plt.xticks(np.arange(10), [i+1 for i in range(10)])
         #plt.ylim([-1.5,1])
         plt.title("Confidence Interval of Parcor-Coefficients, Based on synthetic signal")
-        plt.legend()
-        plt.xlabel(r'$k$', fontsize=14)
-        plt.ylabel(r'$a_k$', fontsize=14)
+        plt.legend(fontsize=12)
+        plt.xlabel(r'$k$', fontsize=12)
+        plt.ylabel(r'$r_k$', fontsize=12)
         plt.grid(True)
     
 
