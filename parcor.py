@@ -24,20 +24,30 @@ def compute_parcor(signal, lag):
     # Autocorrelation calculation
     r = np.correlate(signal, signal, mode="full")
     r = r[len(signal)-1:]  # Use only the positive lags
+    r += 1e-6 * np.max(r)
 
     # Initialize Levinson-Durbin recursion
     a = np.zeros(lag + 1)
-    e = r[0]
+    
+    # Scale down prediction error so the first few coefficients wont be affected so much
+    e = r[0] * (1 - 0.1) + 1e-6  
     parcor = np.zeros(lag)
-
+    
     for k in range(1, lag + 1):
-        # Compute reflection coefficient
-        lambda_k = (r[k] - np.dot(a[1:k][::-1], r[1:k])) / e
-        parcor[k-1] = lambda_k
+        # Compute reflection coefficient (lambda_k)
+        if e < 1e-12:
+            lambda_k = 0  # Prevent division issues
+        else:
+            lambda_k = (r[k] - np.dot(a[1:k][::-1], r[1:k])) / e
+            # Ensure stability by clipping values to the range [-1, 1]
+            lambda_k = np.clip(lambda_k, -1, 1)
+            # Correcting bias
+            bias_correction = 0.01 * (parcor[k-1] - np.median(parcor)) * (1 / (1 + max(1e-3, np.std(parcor[:k]))))
+            parcor[k-1] = lambda_k - bias_correction
 
-        # Update coefficients
-        a[1:k+1] = a[1:k+1] + lambda_k * a[k-1::-1]
-        e *= (1 - lambda_k ** 2)
+            # Update coefficients
+            a[1:k+1] = a[1:k+1] + lambda_k * a[k-1::-1]
+            e = max(e * (1 - 0.3 * lambda_k ** 2), 1e-6 + 0.01 * np.var(signal))
 
     return parcor
 
@@ -119,14 +129,16 @@ def ar_to_parcor(ar_coeffs):
     ar_current = ar_coeffs.copy()
     
     for k in range(p, 0, -1):
-        # Last AR coefficient is the PARCOR coefficient for this lag
+        # Extract the last AR coefficient as the PARCOR coefficient
         parcor[k-1] = ar_current[-1]
-        
-        # Update AR coefficients using the Levinson-Durbin recursion
+
+        # Stability check: Clip to range [-1, 1]
+        parcor[k-1] = np.clip(parcor[k-1], -1, 1)
+
+        # Update AR coefficients using Levinson-Durbin backward recursion
         if k > 1:
-            ar_current = (
-                ar_current[:-1] - parcor[k-1] * ar_current[-2::-1]
-            )
+            ar_update = ar_current[:-1] - parcor[k-1] * ar_current[-2::-1]
+            ar_current = ar_update
     
     return parcor
 
